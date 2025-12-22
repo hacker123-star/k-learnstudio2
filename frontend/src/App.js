@@ -1,41 +1,36 @@
+// frontend/src/App.js
 import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
-import logo from "./assets/Logo.jpg";
+import HomePage from "./pages/HomePage";
+import RegisterPage from "./pages/RegisterPage"; // tutor profile form
+import AuthPage from "./pages/AuthPage"; // login
+import SignupPage from "./pages/SignupPage"; // signup
+import DashboardPage from "./pages/DashboardPage";
+import AdminLoginPage from "./pages/AdminLoginPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+
 
 function App() {
   return (
-    <div className="app">
-      <header className="nav">
-        <div className="nav-left">
-          <img src={logo} alt="K-learn Studio logo" className="logo" />
-          <span className="brand">K-learn Studio</span>
-        </div>
-        <button className="nav-btn">Sign In</button>
-      </header>
-
-      <main className="hero">
-        <div className="hero-text">
-          <h1>Find the perfect tutor, fast.</h1>
-          <p>
-            K-learn Studio connects students with trusted tutors for school,
-            college, and competitive exams in just a few clicks.
-          </p>
-          <div className="hero-actions">
-            <button className="primary-btn">Get Started</button>
-            <button className="secondary-btn">Become a Tutor</button>
-          </div>
-        </div>
-        <div className="hero-card">
-          <h2>Coming soon</h2>
-          <p>We are building a smarter way to learn. Stay tuned for updates.</p>
-        </div>
-      </main>
-
-      <footer className="footer">
-        © {new Date().getFullYear()} K-learn Studio. All rights reserved.
-      </footer>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/register" element={<RegisterPage />} /> {/* Tutor profile */}
+        <Route path="/auth" element={<AuthPage />} /> {/* Login */}
+        <Route path="/signup" element={<SignupPage />} /> {/* Signup */}
+        <Route path="/dashboard" element={<DashboardPage />} />
+         <Route path="/" element={<HomePage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/auth" element={<AuthPage />} />
+  <Route path="/signup" element={<SignupPage />} />
+  <Route path="/dashboard" element={<DashboardPage />} />
+  <Route path="/admin-login" element={<AdminLoginPage />} />
+  <Route path="/admin" element={<AdminDashboardPage />} />
+      </Routes>
+    </Router>
   );
 }
 
 export default App;
+
