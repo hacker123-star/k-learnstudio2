@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Tutor = require('../models/Tutor');
-const fs = require('fs');
 
 const router = express.Router();
 
@@ -41,7 +40,7 @@ const uploadToCloudinary = (buffer, folder, isPdf = false) => {
   });
 };
 
-// ✅ STUDENT REGISTER
+// ✅ STUDENT REGISTER (UNCHANGED - WORKS PERFECTLY)
 router.post('/register', upload.single('profileImage'), async (req, res) => {
   try {
     const { name, email, password, phone, dateOfBirth, classCourse } = req.body;
@@ -97,8 +96,7 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
   }
 });
 
-// ✅ TUTOR REGISTER
-// ✅ TUTOR REGISTER - FIXED FILE UPLOADS
+// ✅ TUTOR REGISTER - NO PASSWORD REQUIRED (Admin assigns later)
 router.post('/tutor/register', upload.fields([
   { name: 'profileImage', maxCount: 1 },
   { name: 'documents', maxCount: 5 }
@@ -106,13 +104,13 @@ router.post('/tutor/register', upload.fields([
   try {
     console.log('🔥 TUTOR REGISTER HIT');
     console.log('Files:', req.files);
-    console.log('ProfileImage:', req.files?.profileImage);
-    console.log('Documents:', req.files?.documents);
+    console.log('Body:', req.body);
 
-    const { name, email, password, phone, subjects, experience, qualifications } = req.body;
+    const { name, email, phone, subjects, experience, qualifications, bio, city } = req.body;
     
-    if (!name || !email || !password || !subjects) {
-      return res.status(400).json({ message: 'Name, email, password, subjects required' });
+    // ✅ NO PASSWORD REQUIRED
+    if (!name || !email || !subjects) {
+      return res.status(400).json({ message: 'Name, email, subjects required' });
     }
 
     // ✅ UNIQUENESS CHECK - Both collections
@@ -136,7 +134,7 @@ router.post('/tutor/register', upload.fields([
       profileImageId = result.public_id;
       console.log('✅ Profile image uploaded:', profileImage);
     } else {
-      console.log('⚠️ No profile image provided');
+      return res.status(400).json({ message: 'Profile image required' });
     }
 
     // ✅ UPLOAD DOCUMENTS (PDFs)
@@ -157,57 +155,50 @@ router.post('/tutor/register', upload.fields([
           console.log(`✅ Document ${i + 1} uploaded`);
         } catch (docError) {
           console.error(`❌ Document ${i + 1} failed:`, docError.message);
-          // Continue with other docs
         }
       }
     }
 
-    // ✅ SAVE TUTOR
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
+    // ✅ SAVE TUTOR - PENDING STATUS + NO PASSWORD
     const tutor = new Tutor({
       name: name.trim(),
       email: email.toLowerCase().trim(),
-      password: hashedPassword,
       phone: phone?.trim(),
+      status: 'pending', // ✅ PENDING - Admin review required
       subjects: subjects.split(',').map(s => s.trim()),
       experience: parseInt(experience) || 0,
       qualifications: qualifications || '',
+      bio: bio || '',
+      city: city || '',
       profileImage,
       profileImageId,
       documents
     });
 
     await tutor.save();
-    console.log('✅ Tutor saved:', tutor._id);
+    console.log('✅ Tutor saved (pending):', tutor._id);
 
-    const token = jwt.sign({ id: tutor._id, role: 'tutor' }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
+    // ✅ NO TOKEN - Just success response
     res.status(201).json({
-      message: 'Tutor registered successfully ✅',
-      token,
+      message: 'Tutor application submitted successfully ✅',
       tutor: { 
         id: tutor._id, 
         name: tutor.name, 
         email: tutor.email, 
-        profileImage,
-        documents: documents.length,
-        status: tutor.status 
+        status: tutor.status,
+        documents: documents.length
       }
     });
 
   } catch (error) {
     console.error('❌ TUTOR REGISTER ERROR:', error);
     res.status(500).json({ 
-      message: 'Registration failed', 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: 'Application failed', 
+      error: error.message
     });
   }
 });
 
-// ✅ STUDENT LOGIN
 // ✅ STUDENT LOGIN - ONLY STUDENTS
 router.post('/login', async (req, res) => {
   try {
@@ -243,7 +234,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ✅ TUTOR LOGIN - ONLY TUTORS  
+// ✅ TUTOR LOGIN - ONLY APPROVED TUTORS
 router.post('/tutor/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -253,6 +244,11 @@ router.post('/tutor/login', async (req, res) => {
     
     if (!tutor) {
       return res.status(400).json({ message: 'Tutor not found. Try student login.' });
+    }
+    
+    // ✅ CHECK STATUS + PASSWORD
+    if (tutor.status !== 'approved') {
+      return res.status(400).json({ message: 'Account pending admin approval' });
     }
     
     const isMatch = await bcrypt.compare(password, tutor.password);
@@ -275,28 +271,6 @@ router.post('/tutor/login', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Tutor login error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-
-// ✅ TUTOR LOGIN
-router.post('/tutor/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const tutor = await Tutor.findOne({ email: email.toLowerCase().trim() });
-    
-    if (!tutor || !await bcrypt.compare(password, tutor.password)) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign({ id: tutor._id, role: 'tutor' }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({
-      message: 'Tutor login successful ✅',
-      token,
-      tutor: { id: tutor._id, name: tutor.name, email: tutor.email, profileImage: tutor.profileImage }
-    });
-  } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });

@@ -41,7 +41,6 @@ const RegisterPage = () => {
 };
 
 const TutorRegisterForm = () => {
-  // ✅ FIXED: All state INSIDE component
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -60,7 +59,7 @@ const TutorRegisterForm = () => {
   const [profileImage, setProfileImage] = useState(null);
   const [educationPdf, setEducationPdf] = useState(null);
   const [status, setStatus] = useState(null);
-  const [tutorId, setTutorId] = useState(""); // ✅ tutorId state FIXED
+  const [tutorId, setTutorId] = useState("");
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -80,7 +79,7 @@ const TutorRegisterForm = () => {
     if (file) setEducationPdf(file);
   };
 
-  // SUBJECTS logic
+  // SUBJECTS LOGIC - UNCHANGED
   const filteredSuggestions = SUBJECT_SUGGESTIONS.filter(
     (s) =>
       s.toLowerCase().includes(subjectInput.toLowerCase()) &&
@@ -126,6 +125,7 @@ const TutorRegisterForm = () => {
     }
   };
 
+  // ✅ SIMPLIFIED - NO PASSWORD
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -142,6 +142,10 @@ const TutorRegisterForm = () => {
       setStatus('❌ At least one subject is required');
       return;
     }
+    if (!form.name || !form.email || !form.phone || !form.highestEducation) {
+      setStatus('❌ Please fill all required fields');
+      return;
+    }
 
     setStatus("loading");
 
@@ -151,21 +155,24 @@ const TutorRegisterForm = () => {
 
     try {
       const formData = new FormData();
+      
+      // ✅ NO PASSWORD - ADMIN ASSIGNS LATER
       formData.append("name", form.name);
       formData.append("email", form.email);
       formData.append("phone", form.phone);
-      formData.append("bio", form.bio);
-      formData.append("city", form.city);
-      formData.append("experienceYears", String(totalYears));
-      formData.append("highestEducation", form.highestEducation);
-      
-      // ✅ FIXED: subjects as comma-separated string
       formData.append("subjects", subjects.join(', '));
-
+      formData.append("experience", String(totalYears));
+      formData.append("qualifications", form.highestEducation);
+      formData.append("bio", form.bio || '');
+      formData.append("city", form.city || '');
+      
+      // ✅ FILES
       formData.append("profileImage", profileImage);
-      formData.append("educationPdf", educationPdf);
+      formData.append("documents", educationPdf);
 
-      const res = await fetch(`${API_BASE_URL}/api/tutors`, {
+      console.log('📤 TUTOR APPLICATION →', `${API_BASE_URL}/api/auth/tutor/register`);
+
+      const res = await fetch(`${API_BASE_URL}/api/auth/tutor/register`, {
         method: "POST",
         body: formData
       });
@@ -173,39 +180,40 @@ const TutorRegisterForm = () => {
       const data = await res.json();
       
       if (!res.ok) {
-        throw new Error(data.message || "Failed to register tutor");
+        console.error('❌ Backend error:', data);
+        throw new Error(data.message || "Application failed");
       }
 
-      // ✅ SAVE TUTOR ID FROM BACKEND
-      setTutorId(data.tutorId || 'TUTOR-ABC123XYZ');
+      // ✅ SUCCESS - SAVE TUTOR ID ONLY (no token)
+      setTutorId(data.tutor?._id || data.id || 'TUTOR-ABC123XYZ');
       setStatus("success");
 
     } catch (err) {
-      console.error(err);
+      console.error('❌ TUTOR APPLICATION ERROR:', err);
       setStatus(err.message);
     }
   };
 
-  // ✅ SUCCESS SCREEN - FORM HIDDEN
+  // SUCCESS SCREEN - ADMIN WILL ASSIGN PASSWORD
   if (status === "success") {
     return (
       <section className="tutor-register">
         <div className="success-container">
           <div className="success-card">
             <div className="success-icon">✅</div>
-            <h2>Thank You!</h2>
+            <h2>Application Submitted!</h2>
             <p className="success-message">
-              Your tutor application submitted successfully!
+              Your tutor profile has been sent for admin review.
             </p>
             <p className="success-details">
               <strong>ID:</strong> {tutorId}<br/>
               <strong>⏱️ Review:</strong> 1-2 days<br/>
-              <strong>📧 Next:</strong> Check email for login details
+              <strong>🔐 Password:</strong> Admin will email you login details
             </p>
             
             <div className="success-buttons">
               <a href="/auth" className="login-btn primary-btn">
-                🔐 Login Here (after approval)
+                🔐 Login (after approval)
               </a>
               <a href="/" className="home-btn secondary-btn">
                 ← Back to Home
@@ -221,12 +229,12 @@ const TutorRegisterForm = () => {
     );
   }
 
-  // FORM SCREEN
+  // FORM SCREEN - NO PASSWORD FIELDS
   return (
     <section className="tutor-register">
-      <h2>Tutor Registration</h2>
+      <h2>Tutor Application</h2>
       <p className="tutor-register-sub">
-        Tell us about your experience and subjects so students can find you.
+        Complete profile → Admin review → Get login details by email
       </p>
 
       <form onSubmit={handleSubmit} className="tutor-form">
@@ -236,6 +244,7 @@ const TutorRegisterForm = () => {
         <input name="city" placeholder="City" value={form.city} onChange={handleChange} />
         <input name="highestEducation" placeholder="Highest education*" value={form.highestEducation} onChange={handleChange} required />
 
+        {/* FILES */}
         <div className="file-row">
           <div className="file-upload-tutor">
             <label className="file-label">
@@ -264,6 +273,7 @@ const TutorRegisterForm = () => {
           </div>
         </div>
 
+        {/* SUBJECTS + EXPERIENCE + BIO - ALL UNCHANGED */}
         <label className="label">
           Subjects you teach *
           <div className="subjects-input-wrapper">
@@ -328,7 +338,7 @@ const TutorRegisterForm = () => {
         <textarea name="bio" placeholder="About your teaching..." rows="4" value={form.bio} onChange={handleChange} />
         
         <button type="submit" className="primary-btn" disabled={status === "loading"}>
-          {status === "loading" ? "Submitting..." : "Submit Application"}
+          {status === "loading" ? "🔄 Submitting Application..." : "✅ Submit Application"}
         </button>
       </form>
 
