@@ -5,7 +5,7 @@ import { API_BASE_URL } from "../config";
 import { useNavigate } from "react-router-dom";
 
 const AuthPage = () => {
-  const [role, setRole] = useState("student"); // student | tutor
+  const [role, setRole] = useState("student");
 
   return (
     <div className="app auth-app">
@@ -20,7 +20,6 @@ const AuthPage = () => {
         <div className="auth-card">
           <h2 className="auth-title">🔐 Login to K-learn Studio</h2>
 
-          {/* ✅ YOUR PERFECT ROLE TOGGLE - UNCHANGED */}
           <div className="role-toggle">
             <button
               className={
@@ -61,30 +60,36 @@ const LoginForm = ({ role }) => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ✅ PASTE THIS COMPLETE FUNCTION
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus("loading");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const endpoint = role === 'tutor' ? '/api/auth/tutor/login' : '/api/auth/login';
+      
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          ...form, 
-          role  // ✅ SENDS ROLE TO BACKEND
+          email: form.email, 
+          password: form.password 
         })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Login failed");
 
-      // ✅ STORE TOKEN + USER WITH ROLE
       localStorage.setItem("klearn_token", data.token);
-      localStorage.setItem("klearn_user", JSON.stringify(data.user));
+      localStorage.setItem("klearn_user", JSON.stringify(
+        role === 'tutor' ? data.tutor : data.user
+      ));
+      localStorage.setItem("klearn_role", role);
+      
       setStatus(null);
       navigate("/dashboard");
     } catch (err) {
-      setStatus(err.message); // ✅ Backend role errors show here
+      setStatus(err.message);
     }
   };
 
@@ -123,7 +128,6 @@ const LoginForm = ({ role }) => {
         </p>
       )}
 
-      {/* ✅ ROLE SWITCH HINT */}
       {status?.includes('Invalid') && (
         <p className="role-hint">
           💡 Wrong role? Switch using buttons above and try again
