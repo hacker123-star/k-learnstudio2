@@ -1,26 +1,20 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const tutorSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String },
-    subjects: [{ type: String }],
-    bio: { type: String },
-    experienceYears: { type: Number, default: 0 },
-    city: { type: String },
-    highestEducation: { type: String },
-    profileImageUrl: { type: String },
-    educationPdfUrl: { type: String },
-    
-    // Verification workflow
-    isVerified: { type: Boolean, default: false },
-    verificationStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
-    defaultPassword: { type: String }, // set by admin after approval
-    
-    isVerified: { type: Boolean, default: false }
-  },
-  { timestamps: true }
-);
+const tutorSchema = new mongoose.Schema({
+  tutorId: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  phone: { type: String, required: true, unique: true },
+  password: { type: String, required: true },  // ✅ NEW PASSWORD FIELD
+  bio: String,
+  city: String,
+  experienceYears: { type: Number, default: 0 },
+  highestEducation: { type: String, required: true },
+  subjects: [{ type: String }],
+  profileImage: { type: String, required: true },
+  educationPdf: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }
+}, { timestamps: true });
 
-module.exports = mongoose.model("Tutor", tutorSchema);
+
+module.exports = mongoose.model('Tutor', tutorSchema);

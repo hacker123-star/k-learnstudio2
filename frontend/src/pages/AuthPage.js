@@ -1,4 +1,3 @@
-// frontend/src/pages/AuthPage.js
 import React, { useState } from "react";
 import "../App.css";
 import logo from "../assets/Logo.jpg";
@@ -19,8 +18,9 @@ const AuthPage = () => {
 
       <main className="auth-page">
         <div className="auth-card">
-          <h2 className="auth-title">Login to K-learn Studio</h2>
+          <h2 className="auth-title">🔐 Login to K-learn Studio</h2>
 
+          {/* ✅ YOUR PERFECT ROLE TOGGLE - UNCHANGED */}
           <div className="role-toggle">
             <button
               className={
@@ -28,7 +28,7 @@ const AuthPage = () => {
               }
               onClick={() => setRole("student")}
             >
-              Student
+              👨‍🎓 Student
             </button>
             <button
               className={
@@ -36,7 +36,7 @@ const AuthPage = () => {
               }
               onClick={() => setRole("tutor")}
             >
-              Tutor
+              👨‍🏫 Tutor
             </button>
           </div>
 
@@ -69,25 +69,30 @@ const LoginForm = ({ role }) => {
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, role })
+        body: JSON.stringify({ 
+          ...form, 
+          role  // ✅ SENDS ROLE TO BACKEND
+        })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Login failed");
 
-      // store token & user and go to dashboard
+      // ✅ STORE TOKEN + USER WITH ROLE
       localStorage.setItem("klearn_token", data.token);
       localStorage.setItem("klearn_user", JSON.stringify(data.user));
       setStatus(null);
       navigate("/dashboard");
     } catch (err) {
-      setStatus(err.message);
+      setStatus(err.message); // ✅ Backend role errors show here
     }
   };
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
-      <p className="auth-subtitle">Logging in as {role}</p>
+      <p className="auth-subtitle">
+        Logging in as <strong>{role === "student" ? "👨‍🎓 Student" : "👨‍🏫 Tutor"}</strong>
+      </p>
 
       <input
         name="email"
@@ -106,13 +111,23 @@ const LoginForm = ({ role }) => {
         required
       />
 
-      <button type="submit" className="primary-btn">
-        Login
+      <button type="submit" className="primary-btn" disabled={status === "loading"}>
+        {status === "loading" ? "🔄 Checking..." : `Login as ${role}`}
       </button>
 
-      {status === "loading" && <p>Checking credentials…</p>}
+      {status === "loading" && <p>🔄 Checking credentials…</p>}
       {status && status !== "loading" && (
-        <p style={{ color: "red" }}>{status}</p>
+        <p className={status.includes('Invalid') || status.includes('pending') 
+            ? "error-message" : "success-message"}>
+          {status}
+        </p>
+      )}
+
+      {/* ✅ ROLE SWITCH HINT */}
+      {status?.includes('Invalid') && (
+        <p className="role-hint">
+          💡 Wrong role? Switch using buttons above and try again
+        </p>
       )}
     </form>
   );
