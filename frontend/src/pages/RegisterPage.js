@@ -162,13 +162,14 @@ const TutorRegisterForm = () => {
       formData.append("phone", form.phone);
       formData.append("subjects", subjects.join(', '));
       formData.append("experience", String(totalYears));
-      formData.append("qualifications", form.highestEducation);
+      formData.append("highestEducation", form.highestEducation); // ✅ Add this line
       formData.append("bio", form.bio || '');
       formData.append("city", form.city || '');
       
       // ✅ FILES
       formData.append("profileImage", profileImage);
-      formData.append("documents", educationPdf);
+      formData.append("educationPdf", educationPdf);
+      formData.append("tutorId", `T${Date.now()}`); 
 
       console.log('📤 TUTOR APPLICATION →', `${API_BASE_URL}/api/auth/tutor/register`);
 

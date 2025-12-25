@@ -1,103 +1,235 @@
-// backend/routes/adminRoutes.js
-const express = require("express");
-const jwt = require("jsonwebtoken");
-const Tutor = require("../models/Tutor");
+const express = require('express');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const Tutor = require('../models/Tutor');
 
 const router = express.Router();
 
-// Middleware: verify admin token
-const verifyAdmin = (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (!token) {
-      return res.status(401).json({ message: "No token provided" });
-    }
+// ✅ CLOUDINARY CONFIG
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-    
-    req.adminId = decoded.adminId;
-    next();
-  } catch (err) {
-    res.status(401).json({ message: "Invalid token" });
-  }
+// ✅ MEMORY STORAGE
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// ✅ UPLOAD FUNCTION
+const uploadToCloudinary = (buffer, folder, isPdf = false) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { 
+        folder,
+        resource_type: isPdf ? 'raw' : 'image',
+        transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    uploadStream.end(buffer);
+  });
 };
 
-// GET /api/admin/tutors/pending  (list pending tutors)
-router.get("/tutors/pending", verifyAdmin, async (req, res) => {
+// ✅ STUDENT REGISTER (UNCHANGED)
+router.post('/register', upload.single('profileImage'), async (req, res) => {
   try {
-    const tutors = await Tutor.find({ verificationStatus: "pending" })
-      .sort({ createdAt: -1 })
-      .select("-defaultPassword"); // hide password
-    res.json(tutors);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    const { name, email, password, phone, dateOfBirth, classCourse } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, password required' });
+    }
+
+    const existingUser = await User.findOne({ 
+      $or: [{ email: email.toLowerCase().trim() }, { phone: phone?.trim() }] 
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    let profileImage = '', profileImageId = '';
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer, 'klearnstudio/students');
+      profileImage = result.secure_url;
+      profileImageId = result.public_id;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = new User({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password: hashedPassword,
+      phone: phone?.trim(),
+      dateOfBirth,
+      classCourse,
+      profileImage,
+      profileImageId
+    });
+
+    await user.save();
+    const token = jwt.sign({ id: user._id, role: 'student' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({
+      message: 'Student registered successfully ✅',
+      token,
+      user: { id: user._id, name: user.name, email: user.email, profileImage }
+    });
+
+  } catch (error) {
+    console.error('❌ Register error:', error.message);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// POST /api/admin/approve-tutor/:id
-router.post("/approve-tutor/:id", verifyAdmin, async (req, res) => {
+// ✅ TUTOR REGISTER - NO PASSWORD (Admin assigns later)
+router.post('/tutor/register', upload.fields([
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'documents', maxCount: 5 }
+]), async (req, res) => {
   try {
-    const { id } = req.params;
-    const tutor = await Tutor.findById(id);
+    console.log('🔥 TUTOR REGISTER HIT');
+    console.log('Files:', req.files);
+    console.log('Body:', req.body);
+
+    const { name, email, phone, subjects, experience, highestEducation, bio, city } = req.body;
     
-    if (!tutor) {
-      return res.status(404).json({ message: "Tutor not found" });
+    if (!name || !email || !subjects) {
+      return res.status(400).json({ message: 'Name, email, subjects required' });
     }
-    
-    if (tutor.verificationStatus === "approved") {
-      return res.status(400).json({ message: "Tutor already approved" });
-    }
-    
-    // Generate default password
-    const defaultPassword = "temp123";
-    const passwordHash = await bcrypt.hash(defaultPassword, 10);
-    
-    // Create User account for tutor
-    const User = require("../models/User");
-    const user = await User.create({
-      name: tutor.name,
-      email: tutor.email,
-      passwordHash,
-      role: "tutor"
+
+    // Check existing users
+    const existingTutor = await Tutor.findOne({ 
+      $or: [{ email: email.toLowerCase().trim() }, { phone: phone?.trim() }] 
+    });
+    const existingUser = await User.findOne({ 
+      $or: [{ email: email.toLowerCase().trim() }, { phone: phone?.trim() }] 
     });
     
-    // Approve tutor
-    tutor.verificationStatus = "approved";
-    tutor.isVerified = true;
-    tutor.defaultPassword = defaultPassword;
-    await tutor.save();
+    if (existingTutor || existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    // Upload profile image (REQUIRED)
+    if (!req.files?.profileImage?.[0]) {
+      return res.status(400).json({ message: 'Profile image required' });
+    }
+    const imageResult = await uploadToCloudinary(req.files.profileImage[0].buffer, 'klearnstudio/tutors');
+    const profileImage = imageResult.secure_url;
+    const profileImageId = imageResult.public_id;
+
+    // Upload documents (REQUIRED - at least 1)
+    const documents = [];
+    if (!req.files?.documents?.[0]) {
+      return res.status(400).json({ message: 'Education document required' });
+    }
     
+    for (let file of req.files.documents) {
+      const docResult = await uploadToCloudinary(file.buffer, 'klearnstudio/tutors/docs', true);
+      documents.push({
+        url: docResult.secure_url,
+        public_id: docResult.public_id,
+        originalname: file.originalname
+      });
+    }
+
+    // ✅ CREATE TUTOR - All schema fields satisfied
+    const tutor = new Tutor({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone?.trim(),
+      password: '', // ✅ Empty - admin sets later
+      status: 'pending',
+      subjects: subjects.split(',').map(s => s.trim()),
+      experience: parseInt(experience) || 0,
+      qualifications: highestEducation || '',
+      bio: bio || '',
+      city: city || '',
+      profileImage,
+      profileImageId,
+      documents,
+      tutorId: `TUTOR-${Date.now()}`
+    });
+
+    await tutor.save();
+    console.log('✅ Tutor created (pending):', tutor._id);
+
+    res.status(201).json({
+      message: 'Tutor application submitted successfully ✅',
+      tutor: { 
+        id: tutor._id, 
+        name: tutor.name, 
+        email: tutor.email, 
+        status: 'pending',
+        documents: documents.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ TUTOR REGISTER ERROR:', error);
+    res.status(500).json({ message: 'Application failed', error: error.message });
+  }
+});
+
+// ✅ STUDENT LOGIN
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user || !await bcrypt.compare(password, user.password)) {
+      return res.status(400).json({ message: 'Invalid student credentials' });
+    }
+
+    const token = jwt.sign({ id: user._id, role: 'student' }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({
-      message: "Tutor approved successfully",
-      tutorId: tutor._id,
-      userId: user._id,
-      defaultPassword
+      message: 'Student login successful ✅',
+      token,
+      user: { id: user._id, name: user.name, email: user.email, profileImage: user.profileImage }
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// POST /api/admin/reject-tutor/:id
-router.post("/reject-tutor/:id", verifyAdmin, async (req, res) => {
+// ✅ TUTOR LOGIN - Only approved tutors
+router.post('/tutor/login', async (req, res) => {
   try {
-    const { id } = req.params;
-    const tutor = await Tutor.findById(id);
+    const { email, password } = req.body;
     
+    const tutor = await Tutor.findOne({ email: email.toLowerCase().trim() });
     if (!tutor) {
-      return res.status(404).json({ message: "Tutor not found" });
+      return res.status(400).json({ message: 'Tutor not found' });
     }
     
-    tutor.verificationStatus = "rejected";
-    await tutor.save();
+    if (tutor.status !== 'approved') {
+      return res.status(400).json({ message: 'Account pending admin approval' });
+    }
     
-    res.json({ message: "Tutor rejected" });
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    if (!await bcrypt.compare(password, tutor.password)) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign({ id: tutor._id, role: 'tutor' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      message: 'Tutor login successful ✅',
+      token,
+      tutor: { id: tutor._id, name: tutor.name, email: tutor.email, profileImage: tutor.profileImage }
+    });
+  } catch (error) {
+    console.error('❌ Tutor login error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

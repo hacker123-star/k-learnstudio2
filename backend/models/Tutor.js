@@ -1,20 +1,30 @@
 const mongoose = require('mongoose');
 
 const tutorSchema = new mongoose.Schema({
-  tutorId: { type: String, required: true, unique: true },
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  phone: { type: String, required: true, unique: true },
-  password: { type: String, required: true },  // ✅ NEW PASSWORD FIELD
-  bio: String,
-  city: String,
-  experienceYears: { type: Number, default: 0 },
-  highestEducation: { type: String, required: true },
+  email: { type: String, required: true, unique: true, lowercase: true },
+  phone: { type: String, required: false },
+  password: { type: String, required: false }, // ✅ Admin assigns later
+  status: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'], 
+    default: 'pending' 
+  },
   subjects: [{ type: String }],
-  profileImage: { type: String, required: true },
-  educationPdf: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }
-}, { timestamps: true });
-
+  experience: { type: Number, default: 0 },
+  qualifications: { type: String, default: '' }, // ✅ highestEducation
+  bio: { type: String, default: '' },
+  city: { type: String, default: '' },
+  profileImage: { type: String, default: '' },
+  profileImageId: { type: String, default: '' },
+  documents: [{
+    url: { type: String },
+    public_id: { type: String },
+    originalname: { type: String }
+  }],
+  tutorId: { type: String, default: '' }
+}, { 
+  timestamps: true 
+});
 
 module.exports = mongoose.model('Tutor', tutorSchema);
