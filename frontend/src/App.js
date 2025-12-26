@@ -20,13 +20,13 @@ function App() {
         <Route path="/auth" element={<AuthPage />} /> {/* Login */}
         <Route path="/signup" element={<SignupPage />} /> {/* Signup */}
         <Route path="/dashboard" element={<DashboardPage />} />
-         <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/auth" element={<AuthPage />} />
-  <Route path="/signup" element={<SignupPage />} />
-  <Route path="/dashboard" element={<DashboardPage />} />
-  <Route path="/admin-login" element={<AdminLoginPage />} />
-  <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/admin-login" element={<AdminLoginPage />} />
+        <Route path="/admin" element={<AdminDashboardPage />} />
       </Routes>
     </Router>
   );
