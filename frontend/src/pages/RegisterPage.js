@@ -168,7 +168,7 @@ const TutorRegisterForm = () => {
       
       // ✅ FILES
       formData.append("profileImage", profileImage);
-      formData.append("educationPdf", educationPdf);
+      formData.append("documents", educationPdf);
       formData.append("tutorId", `T${Date.now()}`); 
 
       console.log('📤 TUTOR APPLICATION →', `${API_BASE_URL}/api/auth/tutor/register`);

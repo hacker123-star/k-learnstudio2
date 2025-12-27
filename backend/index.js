@@ -70,3 +70,10 @@ mongoose.connect(MONGO_URI)
   .catch(err => {
     console.error('❌ MongoDB Error:', err.message);
   });
+app.get('/', (req, res) => {
+  res.json({ 
+    message: '🚀 K-Learn Studio API Running!',
+    endpoints: ['/api/auth/register', '/api/auth/login', '/api/auth/tutor/register'],
+    status: 'healthy'
+  });
+});
