@@ -125,29 +125,49 @@ const TutorRegisterForm = () => {
     }
   };
 
-  // ✅ SIMPLIFIED - NO PASSWORD
+  // ✅ FIXED handleSubmit - FULL VALIDATION RESTORED
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setStatus(null); // ✅ Clear previous messages
 
-    // VALIDATION
+    // ✅ DETAILED VALIDATION WITH SPECIFIC MESSAGES
+    if (!form.name.trim()) {
+      setStatus('❌ Full name is required');
+      return;
+    }
+    
+    if (!form.email.trim() || !form.email.includes('@')) {
+      setStatus('❌ Please enter a valid email address');
+      return;
+    }
+    
+    if (!form.phone.trim() || form.phone.length < 10) {
+      setStatus('❌ Please enter a valid phone number (10+ digits)');
+      return;
+    }
+    
+    if (!form.highestEducation.trim()) {
+      setStatus('❌ Highest education is required');
+      return;
+    }
+    
+    if (subjects.length === 0) {
+      setStatus('❌ Please add at least one subject you teach');
+      return;
+    }
+    
     if (!profileImage) {
       setStatus('❌ Profile picture is required');
       return;
     }
+    
     if (!educationPdf) {
       setStatus('❌ Education proof (PDF) is required');
       return;
     }
-    if (subjects.length === 0) {
-      setStatus('❌ At least one subject is required');
-      return;
-    }
-    if (!form.name || !form.email || !form.phone || !form.highestEducation) {
-      setStatus('❌ Please fill all required fields');
-      return;
-    }
 
-    setStatus("loading");
+    // ✅ All validations passed - Show loading
+    setStatus("🔄 Submitting your application...");
 
     const totalYears = form.isFresher
       ? 0
@@ -156,20 +176,19 @@ const TutorRegisterForm = () => {
     try {
       const formData = new FormData();
       
-      // ✅ NO PASSWORD - ADMIN ASSIGNS LATER
-      formData.append("name", form.name);
-      formData.append("email", form.email);
-      formData.append("phone", form.phone);
+      // ✅ ALL FIELDS - Backend expects these exact names
+      formData.append("name", form.name.trim());
+      formData.append("email", form.email.trim());
+      formData.append("phone", form.phone.trim());
       formData.append("subjects", subjects.join(', '));
       formData.append("experience", String(totalYears));
-      formData.append("highestEducation", form.highestEducation); // ✅ Add this line
+      formData.append("highestEducation", form.highestEducation.trim());
       formData.append("bio", form.bio || '');
       formData.append("city", form.city || '');
       
-      // ✅ FILES
+      // ✅ FILES - Backend expects THESE names
       formData.append("profileImage", profileImage);
       formData.append("documents", educationPdf);
-      formData.append("tutorId", `T${Date.now()}`); 
 
       console.log('📤 TUTOR APPLICATION →', `${API_BASE_URL}/api/auth/tutor/register`);
 
@@ -182,20 +201,27 @@ const TutorRegisterForm = () => {
       
       if (!res.ok) {
         console.error('❌ Backend error:', data);
-        throw new Error(data.message || "Application failed");
+        throw new Error(data.message || "Application failed - please try again");
       }
 
-      // ✅ SUCCESS - SAVE TUTOR ID ONLY (no token)
-      setTutorId(data.tutor?._id || data.id || 'TUTOR-ABC123XYZ');
+      // ✅ SUCCESS
+      setTutorId(data.tutor?._id || data.id || `TUTOR-${Date.now()}`);
       setStatus("success");
 
     } catch (err) {
       console.error('❌ TUTOR APPLICATION ERROR:', err);
-      setStatus(err.message);
+      
+      if (err.message.includes('fetch') || err.message.includes('Network')) {
+        setStatus('❌ Network error - Please check backend is running on port 5000');
+      } else if (err.message.includes('JSON')) {
+        setStatus('❌ Server error - Backend returned invalid response');
+      } else {
+        setStatus(`❌ ${err.message}`);
+      }
     }
   };
 
-  // SUCCESS SCREEN - ADMIN WILL ASSIGN PASSWORD
+  // ✅ SUCCESS SCREEN
   if (status === "success") {
     return (
       <section className="tutor-register">
@@ -230,7 +256,7 @@ const TutorRegisterForm = () => {
     );
   }
 
-  // FORM SCREEN - NO PASSWORD FIELDS
+  // ✅ FORM SCREEN WITH STATUS MESSAGES
   return (
     <section className="tutor-register">
       <h2>Tutor Application</h2>
@@ -238,11 +264,18 @@ const TutorRegisterForm = () => {
         Complete profile → Admin review → Get login details by email
       </p>
 
+      {/* ✅ STATUS MESSAGES - ALWAYS VISIBLE */}
+      {status && (
+        <div className={status.startsWith('❌') ? "error-message" : status.includes('🔄') ? "loading-message" : "success-message"}>
+          {status}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="tutor-form">
         <input name="name" placeholder="Full name*" value={form.name} onChange={handleChange} required />
         <input name="email" type="email" placeholder="Email*" value={form.email} onChange={handleChange} required />
         <input name="phone" placeholder="Phone*" value={form.phone} onChange={handleChange} required />
-        <input name="city" placeholder="City" value={form.city} onChange={handleChange} />
+        <input name="city" placeholder="City (optional)" value={form.city} onChange={handleChange} />
         <input name="highestEducation" placeholder="Highest education*" value={form.highestEducation} onChange={handleChange} required />
 
         {/* FILES */}
@@ -274,7 +307,7 @@ const TutorRegisterForm = () => {
           </div>
         </div>
 
-        {/* SUBJECTS + EXPERIENCE + BIO - ALL UNCHANGED */}
+        {/* SUBJECTS */}
         <label className="label">
           Subjects you teach *
           <div className="subjects-input-wrapper">
@@ -337,15 +370,18 @@ const TutorRegisterForm = () => {
         </div>
 
         <textarea name="bio" placeholder="About your teaching..." rows="4" value={form.bio} onChange={handleChange} />
-        
-        <button type="submit" className="primary-btn" disabled={status === "loading"}>
-          {status === "loading" ? "🔄 Submitting Application..." : "✅ Submit Application"}
+
+        <button 
+          type="submit" 
+          className="primary-btn" 
+          disabled={status === "🔄 Submitting your application..."}
+        >
+          {status === "🔄 Submitting your application..." 
+            ? "⏳ Processing..." 
+            : "✅ Submit Application"
+          }
         </button>
       </form>
-
-      {status && status !== "loading" && status !== "success" && (
-        <p className="error-message">{status}</p>
-      )}
     </section>
   );
 };
